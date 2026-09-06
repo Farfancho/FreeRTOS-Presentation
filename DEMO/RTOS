@@ -1,0 +1,335 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// =========================
+// OLED
+// =========================
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_ADDRESS 0x3C
+
+#define OLED_SDA 21
+#define OLED_SCL 22
+
+// =========================
+// LED
+// =========================
+
+#define LED_PIN 2
+
+Adafruit_SSD1306 display(
+  SCREEN_WIDTH,
+  SCREEN_HEIGHT,
+  &Wire,
+  -1
+);
+
+// Estado compartido del LED
+volatile bool ledState = false;
+
+
+// =========================
+// PROTOTIPOS DE TAREAS
+// =========================
+
+void taskLED(void *parameter);
+void taskOLED(void *parameter);
+void taskSerial(void *parameter);
+void taskUART2(void *parameter);
+
+
+// =========================
+// FUNCIONES AUXILIARES
+// =========================
+
+void actualizarOLED(unsigned long tiempo);
+void enviarSerial(unsigned long tiempo);
+void enviarUART2();
+
+
+// =========================
+// SETUP
+// =========================
+
+void setup() {
+
+  Serial.begin(115200);
+
+  Serial2.begin(
+    9600,
+    SERIAL_8N1,
+    16,
+    17
+  );
+
+  pinMode(LED_PIN, OUTPUT);
+
+  // -------------------------
+  // I2C
+  // -------------------------
+
+  Wire.begin(OLED_SDA, OLED_SCL);
+
+  if (!display.begin(
+        SSD1306_SWITCHCAPVCC,
+        OLED_ADDRESS
+      )) {
+
+    Serial.println("Error iniciando OLED");
+
+    while (true) {
+    }
+  }
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+
+  // =========================
+  // CREAR TAREAS
+  // =========================
+
+  // LED
+  // Alta prioridad
+  xTaskCreatePinnedToCore(
+    taskLED,           // función
+    "Task LED",        // nombre
+    2048,              // stack
+    NULL,              // parámetros
+    4,                 // prioridad
+    NULL,              // handle
+    1                  // core
+  );
+
+
+  // Serial principal
+  xTaskCreatePinnedToCore(
+    taskSerial,
+    "Task Serial",
+    3072,
+    NULL,
+    3,
+    NULL,
+    1
+  );
+
+
+  // OLED
+  xTaskCreatePinnedToCore(
+    taskOLED,
+    "Task OLED",
+    4096,
+    NULL,
+    2,
+    NULL,
+    1
+  );
+
+
+  // UART2
+  // La tarea problemática tiene
+  // la prioridad MÁS BAJA
+  xTaskCreatePinnedToCore(
+    taskUART2,
+    "Task UART2",
+    3072,
+    NULL,
+    1,
+    NULL,
+    1
+  );
+}
+
+
+// =========================
+// LOOP
+// =========================
+
+void loop() {
+
+  // Ya no necesitamos millis()
+  // para manejar las tareas.
+
+  vTaskDelay(portMAX_DELAY);
+}
+
+
+// =====================================================
+// TAREA 1
+// LED cada 50 ms
+// =====================================================
+
+void taskLED(void *parameter) {
+
+  const TickType_t period =
+    pdMS_TO_TICKS(50);
+
+  TickType_t lastWakeTime =
+    xTaskGetTickCount();
+
+  while (true) {
+
+    ledState = !ledState;
+
+    digitalWrite(
+      LED_PIN,
+      ledState
+    );
+
+    vTaskDelayUntil(
+      &lastWakeTime,
+      period
+    );
+  }
+}
+
+
+// =====================================================
+// TAREA 2
+// OLED cada 200 ms
+// =====================================================
+
+void taskOLED(void *parameter) {
+
+  const TickType_t period =
+    pdMS_TO_TICKS(200);
+
+  TickType_t lastWakeTime =
+    xTaskGetTickCount();
+
+  while (true) {
+
+    actualizarOLED(millis());
+
+    vTaskDelayUntil(
+      &lastWakeTime,
+      period
+    );
+  }
+}
+
+
+// =====================================================
+// TAREA 3
+// Serial principal cada 20 ms
+// =====================================================
+
+void taskSerial(void *parameter) {
+
+  const TickType_t period =
+    pdMS_TO_TICKS(20);
+
+  TickType_t lastWakeTime =
+    xTaskGetTickCount();
+
+  while (true) {
+
+    enviarSerial(millis());
+
+    vTaskDelayUntil(
+      &lastWakeTime,
+      period
+    );
+  }
+}
+
+
+// =====================================================
+// TAREA 4
+// UART2 cada 5 ms
+// =====================================================
+
+void taskUART2(void *parameter) {
+
+  const TickType_t period =
+    pdMS_TO_TICKS(5);
+
+  TickType_t lastWakeTime =
+    xTaskGetTickCount();
+
+  while (true) {
+
+    enviarUART2();
+
+    vTaskDelayUntil(
+      &lastWakeTime,
+      period
+    );
+  }
+}
+
+
+// =====================================================
+// OLED
+// =====================================================
+
+void actualizarOLED(
+  unsigned long tiempo
+) {
+
+  display.clearDisplay();
+
+  display.setCursor(0, 0);
+  display.println("ESP32 - FreeRTOS");
+
+  display.setCursor(0, 20);
+  display.print("Tiempo: ");
+  display.print(tiempo);
+  display.println(" ms");
+
+  display.setCursor(0, 40);
+  display.print("LED: ");
+
+  if (ledState) {
+    display.println("ON");
+  } else {
+    display.println("OFF");
+  }
+
+  display.display();
+}
+
+
+// =====================================================
+// SERIAL
+// =====================================================
+
+void enviarSerial(
+  unsigned long tiempo
+) {
+
+  Serial.print("Tiempo: ");
+  Serial.print(tiempo);
+
+  Serial.print(" ms | LED: ");
+  Serial.print(ledState);
+
+  Serial.print(" | Valor1: ");
+  Serial.print(tiempo % 1000);
+
+  Serial.print(" | Valor2: ");
+  Serial.print(
+    (tiempo * 3) % 500
+  );
+
+  Serial.print(" | Valor3: ");
+  Serial.println(
+    (tiempo * 7) % 200
+  );
+}
+
+
+// =====================================================
+// UART2 - CARGA PESADA
+// =====================================================
+
+void enviarUART2() {
+
+  for (int i = 0; i < 1000; i++) {
+
+    Serial2.write('A');
+  }
+}
