@@ -3,20 +3,12 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// =========================
-// OLED
-// =========================
-
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_ADDRESS 0x3C
 
 #define OLED_SDA 21
 #define OLED_SCL 22
-
-// =========================
-// LED
-// =========================
 
 #define LED_PIN 2
 
@@ -27,13 +19,7 @@ Adafruit_SSD1306 display(
   -1
 );
 
-// Estado compartido del LED
 volatile bool ledState = false;
-
-
-// =========================
-// PROTOTIPOS DE TAREAS
-// =========================
 
 void taskLED(void *parameter);
 void taskOLED(void *parameter);
@@ -41,18 +27,10 @@ void taskSerial(void *parameter);
 void taskUART2(void *parameter);
 
 
-// =========================
-// FUNCIONES AUXILIARES
-// =========================
-
 void actualizarOLED(unsigned long tiempo);
 void enviarSerial(unsigned long tiempo);
 void enviarUART2();
 
-
-// =========================
-// SETUP
-// =========================
 
 void setup() {
 
@@ -67,9 +45,6 @@ void setup() {
 
   pinMode(LED_PIN, OUTPUT);
 
-  // -------------------------
-  // I2C
-  // -------------------------
 
   Wire.begin(OLED_SDA, OLED_SCL);
 
@@ -88,11 +63,6 @@ void setup() {
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
 
-  // =========================
-  // CREAR TAREAS
-  // =========================
-
-  // LED
   // Alta prioridad
   xTaskCreatePinnedToCore(
     taskLED,           // función
@@ -129,9 +99,8 @@ void setup() {
   );
 
 
-  // UART2
-  // La tarea problemática tiene
-  // la prioridad MÁS BAJA
+
+  // la prioridad mas baja
   xTaskCreatePinnedToCore(
     taskUART2,
     "Task UART2",
@@ -144,10 +113,6 @@ void setup() {
 }
 
 
-// =========================
-// LOOP
-// =========================
-
 void loop() {
 
   // Ya no necesitamos millis()
@@ -156,11 +121,6 @@ void loop() {
   vTaskDelay(portMAX_DELAY);
 }
 
-
-// =====================================================
-// TAREA 1
-// LED cada 50 ms
-// =====================================================
 
 void taskLED(void *parameter) {
 
@@ -187,11 +147,6 @@ void taskLED(void *parameter) {
 }
 
 
-// =====================================================
-// TAREA 2
-// OLED cada 200 ms
-// =====================================================
-
 void taskOLED(void *parameter) {
 
   const TickType_t period =
@@ -210,12 +165,6 @@ void taskOLED(void *parameter) {
     );
   }
 }
-
-
-// =====================================================
-// TAREA 3
-// Serial principal cada 20 ms
-// =====================================================
 
 void taskSerial(void *parameter) {
 
@@ -237,11 +186,6 @@ void taskSerial(void *parameter) {
 }
 
 
-// =====================================================
-// TAREA 4
-// UART2 cada 5 ms
-// =====================================================
-
 void taskUART2(void *parameter) {
 
   const TickType_t period =
@@ -262,10 +206,6 @@ void taskUART2(void *parameter) {
 }
 
 
-// =====================================================
-// OLED
-// =====================================================
-
 void actualizarOLED(
   unsigned long tiempo
 ) {
@@ -280,22 +220,8 @@ void actualizarOLED(
   display.print(tiempo);
   display.println(" ms");
 
-  display.setCursor(0, 40);
-  display.print("LED: ");
-
-  if (ledState) {
-    display.println("ON");
-  } else {
-    display.println("OFF");
-  }
-
   display.display();
 }
-
-
-// =====================================================
-// SERIAL
-// =====================================================
 
 void enviarSerial(
   unsigned long tiempo
@@ -320,11 +246,6 @@ void enviarSerial(
     (tiempo * 7) % 200
   );
 }
-
-
-// =====================================================
-// UART2 - CARGA PESADA
-// =====================================================
 
 void enviarUART2() {
 
